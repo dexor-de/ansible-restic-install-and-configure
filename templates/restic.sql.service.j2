@@ -1,0 +1,10 @@
+[Unit]
+Description=Backup mysql using dump file
+ConditionPathExists=$RESTIC_MYSQLTARGET
+
+[Service]
+EnvironmentFile={{ restic_conf_dir }}/%i.env
+Type=oneshot
+ExecStart= cat $RESTIC_MYSQLTARGET | {{ restic_install_dir }}/restic backup --stdin --stdin-filename dumped.sql
+TimeoutStartSec=0
+User={{ restic_user }}

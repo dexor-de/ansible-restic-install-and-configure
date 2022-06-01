@@ -1,0 +1,13 @@
+---
+
+- name: Converge
+  hosts: all
+  tasks:
+    - name: Install MySQL database
+      become: true
+      apt:
+        name: [mariadb-server, python3-mysqldb]
+
+    - name: "Include ansible-role-restic"
+      include_role:
+        name: "ansible-role-restic"

@@ -1,0 +1,58 @@
+---
+
+- name: Create systemd service template
+  become: yes
+  notify: reload systemd
+  template:
+    src: "templates/restic.service.j2"
+    dest: "/etc/systemd/system/restic@.service"
+    mode: 0644
+    owner: "{{ restic_user }}"
+    group: root
+    unsafe_writes: true
+
+- name: Create profiles for automated backups
+  become: yes
+  loop: "{{ restic_profiles }}"
+  vars:
+    restic_tags: "{{ restic_default_tags|d([]) + item.tags|d([]) | unique }}"
+    profile: "{{ item|combine({'tags': restic_tags}) }}"
+    profile_name: "{{ item.name }}"
+  template:
+    src: "templates/config.env.j2"
+    dest: "{{ restic_conf_dir }}/{{ item.name }}.env"
+    mode: 0600
+    owner: "{{ restic_user }}"
+    group: root
+
+- name: Create systemd timer for restic
+  become: yes
+  loop: "{{ restic_profiles }}"
+  template:
+    src: "templates/restic.timer.j2"
+    dest: "/etc/systemd/system/restic@{{ item.name }}.timer"
+    owner: "{{restic_user}}"
+    group: root
+  notify: reload systemd
+
+- name: systemctl stop restic.timer
+  become: true
+  ansible.builtin.systemd:
+    name: "restic@{{ item.name }}.timer"
+    state: 'stopped'
+    daemon_reload: true
+    enabled: yes
+    force: yes
+    masked: false
+  loop: "{{ restic_profiles }}"
+
+- name: systemctl start restic.timer
+  become: true
+  ansible.builtin.systemd:
+    name: "restic@{{ item.name }}.timer"
+    state: 'started'
+    daemon_reload: true
+    enabled: yes
+    force: yes
+    masked: false
+  loop: "{{ restic_profiles }}"

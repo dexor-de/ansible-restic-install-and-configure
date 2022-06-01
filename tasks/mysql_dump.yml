@@ -1,0 +1,40 @@
+---
+
+- name: Ensure MySQL Python libraries are installed.
+  become: yes
+  apt:
+    name: "{{ mysql_python_package_debian }}"
+    state: present
+
+- name: Create a database user to run mysqldump with necessary privileges
+  become: yes
+  community.mysql.mysql_user:
+    login_user: "{{ item.mysql_root_login }}"
+    login_password: "{{item.mysql_root_pass}}"
+    name: "{{ restic_mysqldump_user }}"
+    password: "{{ restic_mysqldump_pass }}"
+    priv: '*.*:{{ restic_mysqldump_privs|join(",") }}'
+    state: present
+  loop: "{{restic_profiles}}"
+  when: item.mysql_root_pass is defined
+  tags: mysql
+
+- name: Install script for MySQL backup
+  become: yes
+  template:
+    src: mysql.sh.j2
+    dest: "{{ restic_home }}/mysql.sh"
+    owner: "{{ restic_user }}"
+    group: root
+    mode: 0755
+
+- name: Store credentials for running mysqldump
+  vars:
+    user: "{{ restic_mysqldump_user }}"
+    password: "{{ restic_mysqldump_pass }}"
+  template:
+    src: my.cnf.j2
+    dest: "{{ restic_home }}/.my.cnf"
+    owner: "{{ restic_user }}"
+    mode: 0600
+    

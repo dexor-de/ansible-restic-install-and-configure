@@ -1,0 +1,31 @@
+---
+
+- name: reload systemd
+  become: yes
+  service:
+    daemon_reload: true
+
+- name: systemctl restart restic.timer
+  become: true
+  ansible.builtin.systemd:
+    name: "restic@{{ item.name }}.timer"
+    state: 'restarted'
+    daemon_reload: true
+    enabled: yes
+    force: yes
+    masked: false
+  ignore_errors: true
+  tags: skip_ansible_lint
+  loop: "{{ restic_profiles }}"
+
+- name: systemctl stop restic.timer
+  become: true
+  ansible.builtin.systemd:
+    name: "restic@{{ item.name }}.timer"
+    state: 'stopped'
+    daemon_reload: true
+    enabled: yes
+    masked: false
+  ignore_errors: true
+  tags: skip_ansible_lint
+  loop: "{{restic_profiles}}"

@@ -1,0 +1,29 @@
+---
+
+- name: (BACKUP) Create backup credentials
+  become: yes
+  ansible.builtin.template:
+    src: restic_cred_linux.j2
+    dest: "{{restic_bin_path}}/exports.sh"
+    mode: '0700'
+    owner: '{{ restic_user }}'
+    unsafe_writes: yes
+  with_items: '{{ restic_exports }}'
+
+- name: Run shell script to export credentials
+  become : yes  
+  ansible.builtin.shell:  "{{restic_bin_path}}/exports.sh"
+
+- name: backup restic 
+  become: yes
+  become_user: "{{restic_usr}}"
+  ansible.builtin.command: '{{ restic_bin_path}}/{{restic_install_path}} backup /home/restic'
+  environment:
+    RESTIC_REPOSITORY: '{{ restic_exports.location | default("") }}'
+    RESTIC_PASSWORD: '{{ restic_exports.password }}'
+    AWS_ACCESS_KEY_ID: '{{ restic_exports.aws_access_key | default("") }}'
+    AWS_SECRET_ACCESS_KEY: '{{
+      restic_exports.aws_secret_access_key
+      | default("")
+    }}'
+    unsafe_writes: yes

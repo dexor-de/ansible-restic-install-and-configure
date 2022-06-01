@@ -1,0 +1,92 @@
+---
+
+- name: Ensure directory for downloads exists
+  become: false
+  delegate_to: localhost
+  run_once: true
+  tags: [install]
+  file:
+    path: "{{ role_path }}/files"
+    state: directory
+
+- name: Check downloaded binary
+  become: false
+  delegate_to: localhost
+  run_once: true
+  tags: [install]
+  register: restic_pkg_
+  stat:
+    path: "{{ role_path }}/files/{{ restic_pkg }}"
+
+- name: Download Restic release package
+  become: false
+  delegate_to: localhost
+  run_once: true
+  tags: [install]
+  when: not restic_pkg_.stat.exists
+  get_url:
+    url: "{{ restic_url }}"
+    dest: "{{ role_path }}/files/{{ restic_pkg }}.bz2"
+
+- name: Uncompress binary
+  become: false
+  delegate_to: localhost
+  run_once: true
+  tags: [install]
+  command: bzip2 -d "{{ role_path }}/files/{{ restic_pkg }}".bz2
+    creates="{{ role_path }}/files/{{ restic_pkg }}"
+
+- name: Ensure installation directory exists
+  tags: [install]
+  file:
+    path: "{{ restic_install_dir }}"
+    state: directory
+
+- name: Create user for Restic
+  tags: [install]
+  become: true
+  user:
+    name: "{{ restic_user }}"
+    home: "{{ restic_home }}"
+    shell: /sbin/nologin
+    system: true
+    create_home: true
+    state: "{{ restic_deploy_state }}"
+
+- name: Install Restic binary
+  become: yes
+  tags: [install]
+  when: restic_deploy_state == 'present'
+  copy:
+    src: "{{ role_path }}/files/{{ restic_pkg }}"
+    dest: "{{ restic_bin_path }}"
+    mode: 0755
+
+- name: Install script for running restic with profile config
+  become: true
+  tags: [install]
+  when: restic_deploy_state == 'present'
+  template:
+    src: "templates/restic.sh.j2"
+    dest: "{{ restic_script}}"
+    mode: 0755
+
+- name: Create necessary directories
+  become: true
+  when: restic_deploy_state == 'present'
+  loop:
+    - "{{ restic_cache_dir }}"
+    - "{{ restic_conf_dir }}"
+  file:
+    path: "{{ item }}"
+    mode: 0755
+    owner: "{{ restic_user }}"
+    state: directory
+
+- name: Ensure CAP_DAC_READ_SERACH capability on binary
+  become: yes
+  when: restic_deploy_state == 'present'
+  capabilities:
+    path: "{{ restic_bin_path }}"
+    capability: cap_dac_read_search+ep
+    state: present

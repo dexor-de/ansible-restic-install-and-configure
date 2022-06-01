@@ -1,0 +1,30 @@
+---
+
+dependency:
+  name: galaxy
+driver:
+  name: lxd
+platforms:
+  - name: ubuntu-bionic
+    url: https://localhost:8443
+    source:
+      type: image
+      mode: pull
+      server: https://images.linuxcontainers.org
+      protocol: simplestreams
+      alias: ubuntu/bionic/amd64
+    config:
+      limits.cpu: "2"
+    devices:
+      eth0:
+        type: nic
+        network: fila
+    profiles:
+      - default
+    force_stop: true
+    type: container
+    ignore_volatile_options: false
+provisioner:
+  name: ansible
+verifier:
+  name: ansible

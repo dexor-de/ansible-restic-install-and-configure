@@ -1,0 +1,13 @@
+---
+
+- name: (SCHEDULE) create restic systemd timer
+  ansible.builtin.include_tasks: restic_create_systemd.yml
+  when:
+    - restic_create_schedule == true
+  
+
+- name: (SCHEDULE) delete systemd timers if available
+  ansible.builtin.include_tasks: restic_delete_systemd.yml
+  when:
+    - restic_create_schedule == false
+    

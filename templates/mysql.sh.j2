@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+
+fatal() {
+  # This will print message to stderr and finish script with exit code 1
+  >&2 echo "ERROR:" "$@"
+  exit 1
+}
+
+set -o pipefail
+
+# Fallback to RESTIC_PROFILE env or first argument from CLI
+if [ -z "$RESTIC_PROFILE_FILE" ]; then
+  RESTIC_PROFILE_FILE="{{ restic_conf_dir }}/${RESTIC_PROFILE:=${1}}.env"
+fi
+
+# Check whether specified Restic configuration exists
+test -f "$RESTIC_PROFILE_FILE" \
+  || fatal "profile does not exists:" "$RESTIC_PROFILE_FILE"
+
+# Read and export Restic configuration
+set -a
+source "$RESTIC_PROFILE_FILE"
+set +a
+
+# Run backup command
+echo "--- Backup MySQL databases using profile $RESTIC_PROFILE ($RESTIC_PROFILE_FILE)"
+mysqldump $MYSQLDUMP_ARGS \
+  | {{ restic_bin_path }} --verbose backup $RESTIC_TAGS --tag mysql --stdin --stdin-filename ${RESTIC_PROFILE}.sql
+echo "--- Finished [MySQL]"

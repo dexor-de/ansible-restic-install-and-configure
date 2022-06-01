@@ -1,0 +1,16 @@
+---
+
+- name: (SCHEDULE) (SYSTEMD) delete systemd .service file
+  become: true
+  ansible.builtin.file:
+    path: "/etc/systemd/system/restic@.service"
+    state: absent
+  notify: systemctl stop restic.timer 
+
+- name: Delete systemd timer for restic
+  become: yes
+  loop: "{{ restic_profiles }}"
+  ansible.builtin.file:
+    path:  "/etc/systemd/system/restic@{{ item.name }}.timer"
+    state: absent
+  notify: reload systemd

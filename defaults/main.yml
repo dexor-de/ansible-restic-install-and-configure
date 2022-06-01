@@ -1,0 +1,48 @@
+---
+
+restic_version: 0.13.1
+restic_pkg: restic_{{ restic_version }}_{{ ansible_system|lower }}_{{ _platform_map[ansible_architecture]|default(ansible_architecture) }}
+restic_url: https://github.com/restic/restic/releases/download/v{{ restic_version }}/{{ restic_pkg }}.bz2
+restic_install_dir: /usr/local/bin
+restic_conf_dir: /etc/restic
+restic_cache_dir: /var/cache/restic
+restic_user: backup
+restic_home: /home/{{restic_user}}
+restic_bin_path: "{{ restic_install_dir }}/restic"
+restic_script: "{{ restic_install_dir }}/restic-profile"
+
+restic_profiles:
+  - name: default
+    password: password
+    storage:
+      repository: repository
+      aws_access_key_id: aws_access_key_id
+      aws_secret_access_key:  aws_secret_access_key
+    paths:
+      - /etc
+      - /var/lib
+    schedule: '*-*-* *:*:10'
+    keep:
+      last: 12
+
+# systemd timer defaults
+restic_copy_schedule: daily
+restic_backup_schedule: daily
+restic_check_schedule: weekly
+restic_prune_schedule: monthly
+restic_timer_randomized_delay: 30m
+
+restic_default_tags:
+  - "{{ profile_name }}"
+  - ansible
+
+restic_deploy_state: "{{ restic__uninstall | ternary('present', 'absent') }}"
+restic_systemd_unit_templates:
+  - "restic@.service"
+  - "restic-prune@.service"
+  - "restic-check@.service"
+  - "restic-copy@.service"
+  - "restic@.timer"
+  - "restic-prune@.timer"
+  - "restic-check@.timer"
+  - "restic-copy@.timer"

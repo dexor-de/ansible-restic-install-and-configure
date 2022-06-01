@@ -1,0 +1,12 @@
+[Unit]
+Description=Run restic backup task using %I profile
+Documentation=man:restic(1)
+Documentation=https://restic.readthedocs.io/en/stable/
+
+[Timer]
+OnCalendar={{ restic_backup_schedule }}
+RandomizedDelaySec={{ restic_timer_randomized_delay }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

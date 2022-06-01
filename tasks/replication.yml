@@ -1,0 +1,58 @@
+---
+
+- name: Create systemd service overrides
+  become: true
+  file:
+    path: /etc/systemd/system/{{ 'restic-copy' if item.schedule != 'always' else 'restic' }}@{{ item.profile }}.service.d
+    state: directory
+
+- name: Configure repository replication during backup for profile {{ item.profile }}
+  become: true
+  tags: profiles
+  notify: reload systemd
+  when: item.schedule is not defined
+     or item.schedule == 'always'
+  copy:
+    dest: /etc/systemd/system/restic@{{ item.name }}.service.d/replication.conf
+    content: |-
+      [Service]
+      Environment=RESTIC_REPOSITORY2={{ item.repository }}
+      Environment=RESTIC_PASSWORD2={{ item.password }}
+      Environment={%- for var in item.keys()|difference(['repository', 'password', 'schedule', 'preserve_params']) -%}
+        {{ var|upper }}={{ item[var] }} {% endfor %}
+      ExecStartPost={{ restic_bin_path }} --verbose copy
+        {%- if item.preserve_params %}--copy-chunker-params {% endif %}
+
+- name: Install systemd timer for restic profile {{ item.name }}
+  become: true
+  notify: reload systemd
+  when: item.schedule is defined
+    and item.schedule != 'always'
+  begin:
+    - name: Install replication systemd units
+      loop:
+        - "restic-copy@{{  }}.service"
+        - "restic-copy@.timer"
+      template:
+        src: "templates/{{ item }}.j2"
+        dest: "/etc/systemd/system/{{ item }}"
+        mode: 0600
+
+- name: Activate systemd timer
+  become: true
+  ansible.builtin.systemd:
+    name: restic@{{ profile.name }}.timer
+    state: started
+    daemon_reload: true
+    enabled: true
+
+- name: Initialize repository
+  become: true
+  become_user: "{{ restic_user }}"
+  register: restic_init
+  changed_when: "'created restic repository' in restic_init.stdout"
+  failed_when: restic_init.rc not in [0,1]
+  environment:
+    RESTIC_PROFILE: "{{ profile.name }}"
+  ansible.builtin.command: >
+    {{ restic_bin_path }}.sh init

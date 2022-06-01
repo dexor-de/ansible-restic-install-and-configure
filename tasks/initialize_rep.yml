@@ -1,0 +1,18 @@
+---
+
+- name: (CONF)Initialize repository
+  become: yes
+  become_user: "{{restic_user}}"
+  ansible.builtin.command: '{{ restic_install_dir }}/restic init'
+  environment:
+    RESTIC_REPOSITORY: '{{ restic_exports.location | default("") }}'
+    RESTIC_PASSWORD: '{{ restic_exports.password }}'
+    AWS_ACCESS_KEY_ID: '{{ restic_exports.aws_access_key | default("") }}'
+    AWS_SECRET_ACCESS_KEY: '{{
+      restic_exports.aws_secret_access_key
+      | default("")
+    }}'
+    unsafe_writes: yes
+  register: restic_init
+  changed_when: "'created restic repository' in restic_init.stdout"
+  failed_when: restic_init.rc not in [0,1]

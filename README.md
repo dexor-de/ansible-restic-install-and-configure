@@ -11,7 +11,7 @@ The Restic executable will have a capability to read any file on system regardle
 
 verifyed supported platforms:
 
-- Ubuntu: 20.04, 21.04, 22.04, 20.10, 21.10, 22.10.
+- Ubuntu: 20.04, 21.04, 22.04, 20.10, 21.10, 22.04.
 - Debian: all
 
 ## Available variables

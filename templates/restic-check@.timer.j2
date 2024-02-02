@@ -1,0 +1,15 @@
+[Unit]
+Description=Run restic backup task using %I profile
+Documentation=man:restic(1)
+Documentation=https://restic.readthedocs.io/en/stable/
+
+Conflicts=restic@.service
+Conflicts=restic-prune@.service
+Conflicts=restic-check@.service
+
+[Timer]
+OnCalendar={{ restic_check_schedule }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

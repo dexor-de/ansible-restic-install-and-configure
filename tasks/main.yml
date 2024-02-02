@@ -1,0 +1,37 @@
+---
+## install restic and make basic conf
+- name: create user and install skeleton for restic backups
+  import_tasks: install.yml
+  tags: [install]
+
+# systemd templates
+- name: Ensure systemd units are {{ restic_deploy_state }}
+  become: true
+  tags: [install]
+  notify: reload systemd
+  loop: "{{ restic_systemd_unit_templates }}"
+  template:
+    src: templates/{{ item }}.j2
+    dest: /etc/systemd/system/{{ item }}
+
+## Generation of profile
+- name: Setup backup profiles
+  include_tasks: profile.yml
+  loop: "{{ restic_profiles }}"
+  loop_control:
+    loop_var: iter_profile
+  vars:
+    profile_name: "{{ iter_profile.name }}"
+    profile: "{{ [restic_profile_defaults, iter_profile]|combine(recursive=True, list_merge='append_rp') }}"
+
+- name: Delete files
+  become: true
+  when: restic_deploy_state == 'absent'
+  tags: [never, uninstall]
+  file:
+    path: "{{ item }}"
+    state: "{{ restic_deploy_state }}"
+  with_flattened:
+    - "{{ restic_systemd_unit_files }}"
+    - "{{ restic_profile_files }}"
+    - "{{ restic_script }}"

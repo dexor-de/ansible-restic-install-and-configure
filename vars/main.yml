@@ -1,0 +1,18 @@
+restic_profile_defaults:
+  enabled: "{{ restic__uninstall|bool }}"
+  tags: "{{ restic_default_tags }}"
+  paths: []
+  stdin: []
+  keep: {}
+  schedule:
+    backup: "{{ restic_backup_schedule }}"
+
+restic__uninstall: "{{ ['remove', 'uninstall', 'restic:uninstall']|union(ansible_run_tags)|length > 0 }}"
+restic_file_state: "{{ restic__uninstall|ternary('present', 'absent') }}"
+restic_directory_state: "{{ restic__uninstall|ternary('directory', 'absent') }}"
+restic_service_state: "{{ restic__uninstall|ternary('started', 'stopped') }}"
+restic_timer_state: "{{ restic__uninstall|ternary('started', 'stopped') }}"
+
+# restic_systemd_unit_files: "{{ restic_systemd_unit_templates | product(['service', 'timer']) | map('join', '.') | product(['', '.d']) | map('join', '') | map('regex_replace', '^(.*)$', '/etc/systemd/system/\\1') }}"
+restic_systemd_unit_files: "{{ restic_systemd_unit_templates | product(['', '.d']) | map('join', '') | map('regex_replace', '^(.*)$', '/etc/systemd/system/\\1') }}"
+restic_profile_files: "{{ restic_profiles | map(attribute='name') | map('regex_replace', '^(.*)$', '{{ restic_conf_dir }}/\\1.env') }}"

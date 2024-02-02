@@ -1,0 +1,154 @@
+---
+- name: Ensure profile configuration is valid
+  tags: always
+  assert:
+    that: profile.paths|length > 0 or profile.stdin|length > 0
+    fail_msg: Profile must have at least one element in paths or stdin
+
+- name: Ensure profile storage configuration is valid
+  tags: always
+  assert:
+    that:
+      - profile.storage is defined
+      - profile.storage.repository is defined
+    fail_msg: Profile must have repository in storage section
+
+- name: Copy profile configuration file for {{ profile.name }}
+  when: restic_deploy_state == 'present'
+  tags: [install, configure]
+  ansible.builtin.template:
+    src: "templates/profile.env.j2"
+    dest: "{{ restic_conf_dir }}/{{ profile.name }}.env"
+    mode: 0600
+    owner: "{{ restic_user }}"
+    group: root
+
+- name: Create systemd service overrides
+  when: profile.stdin|length > 0
+  tags: [install, configure, uninstall]
+  ansible.builtin.file:
+    path: /etc/systemd/system/restic@{{ profile.name }}.service.d
+    state: "{{ restic_directory_state }}"
+
+- name: Create systemd timer overrides
+  when:
+    - profile.schedule is defined
+    - profile.schedule.backup|d(profile.schedule) != restic_backup_schedule
+  tags: [install, configure, uninstall]
+  loop:
+    - ""
+    - "-prune"
+    - "-check"
+  ansible.builtin.file:
+    path: /etc/systemd/system/restic{{item}}@{{ profile.name }}.timer.d
+    state: "{{ restic_directory_state }}"
+
+- name: Configure backup for stdin commands in {{ profile.name }}
+  notify: reload systemd
+  when:
+    - restic_deploy_state == 'present'
+    - profile.stdin|length > 0
+  tags: [install, configure]
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/restic@{{ profile.name }}.service.d/stdin.conf
+    content: |-
+      [Service]
+      {% if profile.paths|length == 0 %}ExecStart={% endif %}
+      {% for s in profile.stdin %}
+      ExecStart={{ restic_script }} --verbose backup \
+        $RESTIC_OPTIONS $RESTIC_TAGS $RESTIC_FLAGS \
+        --stdin-filename {{ s.name }} {%- for tag in s.tags|d([]) %} --tag {{ tag }}{% endfor %} \
+        -- {{ s.command }}
+      {% endfor %}
+      {% if profile.keep|length == 0 %}ExecStartPost={% endif %}
+
+- name: Configure repository replication in {{ profile.name }}
+  notify: reload systemd
+  when:
+    - restic_deploy_state == 'present'
+    - profile.storage.repository2 is defined
+  tags: [install, configure]
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/restic@{{ profile.name }}.service.d/replication.conf
+    content: |-
+      [Service]
+      ExecStartPost={{ restic_bin_path }} --verbose copy
+
+- name: Install systemd timer for restic profile {{ profile.name }}
+  notify: reload systemd
+  when:
+    - restic_deploy_state == 'present'
+    - profile.schedule.backup|d(profile.schedule) != restic_backup_schedule
+  tags: [install, configure]
+  loop:
+    - key: ""
+      name: "{{profile.schedule.backup}}"
+    - key: "-prune"
+      name: "{{profile.schedule.prune}}"
+    - key: "-check"
+      name: "{{profile.schedule.check}}"
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/restic{{item.key}}@{{ profile.name }}.timer.d/schedule.conf"
+    content: |-
+      [Timer]
+      OnCalendar=
+      OnCalendar={{ item.name |d(profile.schedule) }}
+
+- name: Check if repository is initialized
+  become_user: "{{ restic_user }}"
+  when: restic_deploy_state == 'present'
+  register: _check
+  changed_when: false
+  failed_when: false
+  loop:
+    - "{{ profile.storage.repository }}"
+    - "{{ profile.storage.repository2|d(profile.storage.repository) }}"
+  loop_control:
+    loop_var: repo
+  environment:
+    RESTIC_PROFILE: "{{ profile_name }}"
+  tags: [install, configure]
+  ansible.builtin.command: >
+    {{ restic_script }} check --repo {{ repo }}
+
+- name: Initialize repository
+  become_user: "{{ restic_user }}"
+  when:
+    - not _check.skipped
+    - _check.results[0].rc != 0
+  register: _init
+  changed_when: "'created restic repository' in _init.stdout"
+  tags: [install, configure]
+  environment:
+    RESTIC_REPOSITORY: "{{ profile.storage.repository }}"
+    RESTIC_PASSWORD: "{{ profile.password }}"
+  ansible.builtin.command: >
+    {{ restic_bin_path }} init
+
+- name: Initialize secondary repository
+  become_user: "{{ restic_user }}"
+  when:
+    - not _check.skipped
+    - profile.storage.repository2 is defined
+    - _check.results[1].rc != 0
+  register: _init
+  changed_when: "'created restic repository' in _init.stdout"
+  tags: [install, configure]
+  environment:
+    RESTIC_PROFILE: "{{ profile.name }}"
+    RESTIC_PASSWORD2: "{{ profile.password }}"
+  ansible.builtin.command: >
+    {{ restic_script }} --repo {{ profile.storage.repository2 }} init --copy-chunker-params
+      --repo2 {{ profile.storage.repository }}
+
+- name: Activate systemd timer
+  tags: [install, configure]
+  loop:
+    - restic-check
+    - restic
+    - restic-prune
+  ansible.builtin.systemd:
+    name: "{{item}}@{{ profile.name }}.timer"
+    state: "{{ profile.enabled|ternary('started', 'stopped') }}"
+    daemon_reload: true
+    enabled: "{{ profile.enabled }}"

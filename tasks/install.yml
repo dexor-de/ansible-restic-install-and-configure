@@ -1,0 +1,50 @@
+---
+- name: Create user for Restic
+  ansible.builtin.user:
+    name: "{{ restic_user }}"
+    home: "{{ restic_home }}"
+    shell: /sbin/nologin
+    system: true
+    create_home: true
+    state: "{{ restic_deploy_state }}"
+
+- name: Create necessary directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: 0755
+    owner: "{{ restic_user }}"
+    state: directory
+  loop:
+    - "{{ restic_cache_dir }}"
+    - "{{ restic_conf_dir }}"
+
+## Installation
+
+- name: install restic from default repo
+  become: true
+  ansible.builtin.package:
+    name: restic
+    state: present
+
+- name: update restic using build-in update feature
+  become: true
+  ansible.builtin.shell:
+    cmd: restic self-update
+  register: restic_version_after_update
+  changed_when: restic_version_after_update.stdout_lines[-1] != "restic is up to date"
+
+- name: Ensure CAP_DAC_READ_SEARCH capability on binary
+  become: true
+  community.general.capabilities:
+    path: "{{ restic_bin_path }}"
+    capability: cap_dac_read_search+ep
+    state: present
+
+- name: Install script for running restic with profile config
+  become: true
+  tags: [install]
+  when: restic_deploy_state == 'present'
+  template:
+    src: "templates/restic.sh.j2"
+    dest: "{{ restic_script}}"
+    mode: 0755

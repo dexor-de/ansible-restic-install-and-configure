@@ -1,0 +1,54 @@
+#!/bin/bash
+# {{ ansible_managed }}
+#
+# Wrapper for Restic which will run it using options from configuration file
+# everything after '--' will be run as a command for backup from stdin
+
+fatal() {
+  # This will print message to stderr and finish script with exit code 1
+  >&2 echo "ERROR:" "$@"
+  exit 1
+}
+
+
+if [ $# -gt 0 ]; then
+  if [ -f "$1" ]; then
+    RESTIC_PROFILE_FILE="$1"
+    shift
+  elif [ -f "{{ restic_conf_dir }}/$1.env" ]; then
+    RESTIC_PROFILE_FILE="{{ restic_conf_dir }}/$1.env"
+    shift
+  fi
+fi
+
+# Fallback to RESTIC_PROFILE env or first argument from CLI
+if [ -z "$RESTIC_PROFILE_FILE" ]; then
+  RESTIC_PROFILE_FILE="{{ restic_conf_dir }}/${RESTIC_PROFILE}.env"
+fi
+
+# Check whether specified Restic configuration exists
+test -f "$RESTIC_PROFILE_FILE" \
+  || fatal "profile does not exists:" "$RESTIC_PROFILE_FILE"
+
+# Read and export Restic configuration
+set -a
+. "$RESTIC_PROFILE_FILE"
+set +a
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --) shift;
+        stdin_cmd=("$@");
+        break;;
+    *)  args+=("$1"); shift;;
+  esac
+done
+
+if [ -n "$stdin_cmd" ]; then
+  set -o pipefail
+  args+=(--stdin)
+  exec "${stdin_cmd[@]}" | "{{ restic_bin_path }}" "${args[@]}"
+else
+  exec "{{ restic_bin_path }}" "${args[@]}"
+fi
+

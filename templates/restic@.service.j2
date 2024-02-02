@@ -1,0 +1,41 @@
+[Unit]
+Description=Backup task using restic profile %I
+Documentation=man:restic(1)
+Documentation=https://restic.readthedocs.io/en/stable/
+
+After=network-online.target
+Requires=local-fs.target
+Requires=network.target
+# Do not run in case another backup is already running
+Conflicts=restic-prune@.service
+Conflicts=restic-check@.service
+
+[Service]
+Type=oneshot
+User={{ restic_user }}
+Environment=RESTIC_PROFILE=%i RESTIC_PROFILE_FILE={{ restic_conf_dir }}/%i.env
+Environment=RESTIC_CACHE_DIR={{ restic_cache_dir }}
+EnvironmentFile={{ restic_conf_dir }}/%i.env
+
+# backup paths
+ExecStart={{ restic_bin_path }} --verbose backup $RESTIC_EXCLUDE $RESTIC_OPTIONS $RESTIC_TAGS $RESTIC_FLAGS $BACKUP_PATHS
+# archive old backups (this will not free up the space, must run with --prune for that)
+ExecStartPost={{ restic_bin_path }} forget $RESTIC_TAGS $RESTIC_KEEP
+
+# allow restic access any file in the system regardless of permissions
+AmbientCapabilities=CAP_DAC_READ_SEARCH
+
+# Security hardening (see man 7 systemd.exec)
+PrivateTmp=true
+ProtectHome=read-only
+ProtectSystem=full
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+ProtectControlGroups=true
+PrivateDevices=true
+MemoryDenyWriteExecute=true
+ReadWritePaths={{ restic_cache_dir }}
+
+[Install]
+WantedBy=multi-user.target

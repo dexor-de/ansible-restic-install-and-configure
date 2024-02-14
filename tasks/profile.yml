@@ -23,6 +23,16 @@
     owner: "{{ restic_user }}"
     group: root
 
+- name: Create restic password file for {{profile.name}}
+  when: restic_deploy_state == 'present'
+  tags: [install, configure]
+  ansible.builtin.copy:
+    dest: "{{ restic_conf_dir }}/.{{ profile.name }}.secret"
+    mode: 0400
+    content: "{{ profile.password }}"
+    owner: "{{ restic_user }}"
+    group: root
+
 - name: Create systemd service overrides
   when: profile.stdin|length > 0
   tags: [install, configure, uninstall]

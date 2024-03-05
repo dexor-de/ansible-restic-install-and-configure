@@ -24,7 +24,33 @@
   become: true
   ansible.builtin.package:
     name: restic
-    state: present
+    state: absent
+
+- name: get restic 16.04
+  delegate_to: localhost
+  become: false
+  run_once: true
+  ansible.builtin.get_url:
+    url: https://github.com/restic/restic/releases/download/v0.16.4/restic_0.16.4_linux_amd64.bz2
+    dest: /tmp/restic_0.16.4_linux_amd64.bz2
+
+- name: copy restic
+  become: false
+  ansible.builtin.copy:
+    src: /tmp/restic_0.16.4_linux_amd64.bz2
+    dest: /tmp/restic_0.16.4_linux_amd64.bz2
+
+- name: Extract the archive
+  ansible.builtin.command:
+    cmd: bunzip2 -d /tmp/restic_0.16.4_linux_amd64.bz2
+    creates: /tmp/restic_0.16.4_linux_amd64
+
+- name: Copy restic on place
+  ansible.builtin.copy:
+    remote_src: true
+    src: /tmp/restic_0.16.4_linux_amd64
+    dest: /usr/bin/restic
+    mode: 0755
 
 - name: update restic using build-in update feature
   become: true

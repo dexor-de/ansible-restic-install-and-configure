@@ -82,7 +82,7 @@
     dest: /etc/systemd/system/restic@{{ profile.name }}.service.d/replication.conf
     content: |-
       [Service]
-      ExecStartPost={{ restic_bin_path }} --verbose copy
+      ExecStartPost={{ restic_bin_path }} --verbose copy -r $RESTIC_TO_REPOSITORY
 
 - name: Install systemd timer for restic profile {{ profile.name }}
   notify: reload systemd
@@ -146,10 +146,10 @@
   tags: [install, configure]
   environment:
     RESTIC_PROFILE: "{{ profile.name }}"
-    RESTIC_PASSWORD2: "{{ profile.password }}"
+    RESTIC_FROM_PASSWORD: "{{ profile.password }}"
   ansible.builtin.command: >
     {{ restic_script }} --repo {{ profile.storage.repository2 }} init --copy-chunker-params
-      --repo2 {{ profile.storage.repository }}
+      --from-repo {{ profile.storage.repository }}
 
 - name: Activate systemd timer
   tags: [install, configure]

@@ -21,6 +21,8 @@ EnvironmentFile={{ restic_conf_dir }}/%i.env
 ExecStart={{ restic_bin_path }} --verbose backup $RESTIC_EXCLUDE $RESTIC_OPTIONS $RESTIC_TAGS $RESTIC_FLAGS $BACKUP_PATHS
 # archive old backups (this will not free up the space, must run with --prune for that)
 ExecStartPost={{ restic_bin_path }} forget $RESTIC_TAGS $RESTIC_KEEP
+# attempt to remove lock file disregard of the exit code of backup
+ExecStopPost=/usr/bin/restic unlock
 
 # allow restic access any file in the system regardless of permissions
 AmbientCapabilities=CAP_DAC_READ_SEARCH

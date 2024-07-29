@@ -20,6 +20,9 @@ EnvironmentFile={{ restic_conf_dir }}/%i.env
 # verify repository
 ExecStart={{ restic_bin_path }} prune $RESTIC_PRUNE_FLAGS
 
+# attempt to remove lock file disregard of the exit code of backup
+ExecStopPost=/usr/bin/restic unlock
+
 # allow restic access any file in the system regardless of permissions
 AmbientCapabilities=CAP_DAC_READ_SEARCH
 
